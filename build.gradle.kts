@@ -24,6 +24,8 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
+    implementation(platform("org.springframework.ai:spring-ai-bom:2.0.1"))
+
 }
 
 tasks.withType<Test> {
