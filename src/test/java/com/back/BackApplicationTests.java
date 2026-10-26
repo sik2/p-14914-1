@@ -6,6 +6,7 @@ import com.back.ai.service.ChatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import reactor.test.StepVerifier;
 
 import java.util.List;
 
@@ -49,4 +50,12 @@ class BackApplicationTests {
         System.out.println("Ollama Stream Response: " + response);
     }
 
+    @Test
+    @DisplayName("StepVerifier - 스트림이 토큰을 1개 이상 내보낸 뒤 정상 종료된다")
+    void t3() {
+        StepVerifier.create(chatService.streamChatResponse("Reply with one word: hello"))
+                .expectNextMatches(token -> token != null) // 첫 토큰이 도착한다
+                .thenConsumeWhile(token -> true)           // 나머지 토큰은 모두 소비
+                .verifyComplete();                         // 에러 없이 onComplete로 끝나야 통과
+    }
 }
