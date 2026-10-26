@@ -4,39 +4,54 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.web.context.reactive.ReactiveWebApplicationContext;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.reactive.server.WebTestClient;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@AutoConfigureMockMvc
+@AutoConfigureWebTestClient // WebTestClient 자동 구성
 class AiControllerTests {
 
     @Autowired
-    private MockMvc mockMvc;
+    private WebTestClient webTestClient;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Test
-    @DisplayName("GET /api/v1/ai/chat - Spring MVC에서 Flux 응답을 SSE로 받는다")
-    void t1() throws Exception {
-        MvcResult mvcResult = mockMvc.perform(get("/api/v1/ai/chat")
-                        .param("message", "Hello, SSE!")
-                        .accept(MediaType.TEXT_EVENT_STREAM))
-                .andExpect(request().asyncStarted()) // Flux를 반환하면 비동기 요청으로 처리된다
-                .andReturn();
+    @DisplayName("webmvc를 제거하면 리액티브(WebFlux) 애플리케이션으로 실행된다")
+    void t0() {
+        assertInstanceOf(ReactiveWebApplicationContext.class, applicationContext);
+    }
 
-        mockMvc.perform(asyncDispatch(mvcResult)) // 스트림이 끝날 때까지 기다린 뒤 결과 확인
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
-                .andExpect(content().string(containsString("data:")));
+    @Test
+    @DisplayName("GET /api/v1/ai/chat - SSE 스트리밍 테스트")
+    void t1() {
+        List<String> events = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/ai/chat")
+                        .queryParam("message", "Hello, SSE!")
+                        .build())
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+                .returnResult(String.class)
+                .getResponseBody() // SSE 이벤트 하나가 Flux의 요소 하나
+                .collectList()
+                .block(); // 구독해야 실제로 요청이 실행된다
+
+        assertNotNull(events);
+        assertFalse(events.isEmpty());
+        System.out.println("SSE 이벤트 수: " + events.size());
+        System.out.println("SSE Response: " + String.join("", events));
     }
 }
