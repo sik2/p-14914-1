@@ -1,5 +1,6 @@
 package com.back.ai.controller;
 
+import com.back.ai.dto.ChatChunk;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,5 +54,27 @@ class AiControllerTests {
         assertFalse(events.isEmpty());
         System.out.println("SSE 이벤트 수: " + events.size());
         System.out.println("SSE Response: " + String.join("", events));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/ai/chat/chunks - JSON으로 감싼 토큰은 공백이 보존된다")
+    void t2() {
+        List<ChatChunk> chunks = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/ai/chat/chunks")
+                        .queryParam("message", "Hello, SSE!")
+                        .build())
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(ChatChunk.class) // data:{"content":"..."} 를 ChatChunk로 변환
+                .getResponseBody()
+                .collectList()
+                .block();
+
+        assertNotNull(chunks);
+        String response = chunks.stream().map(ChatChunk::content).reduce("", String::concat);
+        assertTrue(response.contains(" ")); // 단어 사이 공백이 살아 있다
+        System.out.println("SSE Chunk Response: " + response);
     }
 }
